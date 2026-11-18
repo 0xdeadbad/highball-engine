@@ -43,7 +43,8 @@ yet. The paragraphs under the table give the details and the measurements.
 | `0032` ntdll-do-not-pass-openxr-environment-variables | The host's `XR_*` variables reached Windows programs, so a Windows OpenXR loader would read a Mac runtime manifest. | wineopenxr (VR, experimental) | general | from Proton, not in WineHQ | Proton 7d8366caa06 |
 | `0033` ntdll-export-wine-set-unix-env | wineopenxr could not pass the runtime's Vulkan device extensions to winevulkan's host side. | wineopenxr (VR, experimental) | CrossOver tree (ported Proton hack) | not upstreamable as is | Proton 1d4a019a8c6, ported |
 | `0034` winemac-enable-wine-vr-extensions | The Mac driver did not offer 0031's extensions. | wineopenxr (VR, experimental) | macOS | goes with 0031 | Highball fork (0xdeadbad) |
-| `0035` wineopenxr-build-on-macos | Proton's wineopenxr was not built: registers it, links the static OpenXR loader, asks for a Metal surface instead of Xlib. | wineopenxr (VR, experimental) | macOS | not upstreamable as is | Highball fork (0xdeadbad) |
+| `0035` wineopenxr-build-on-macos | Proton's wineopenxr was not built: registers it, links the static OpenXR loader, asks for a Metal surface instead of Xlib; accepts an empty instance-extension list from the runtime and keeps depth swapchains non-mutable. | wineopenxr (VR, experimental) | macOS | not upstreamable as is | Highball fork (0xdeadbad) |
+| `0036` winevulkan-unexpose-metal-objects | VK_EXT_metal_objects, which OXRSys needs on the game's device, was dropped from the runtime's device extensions. | wineopenxr (VR, experimental) | macOS | goes with 0031 | Highball fork (0xdeadbad) |
 
 `0004` was an overlay-window attempt at what `0007` fixes. It was replaced the next day and its number was not reused.
 

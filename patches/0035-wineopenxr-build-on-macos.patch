@@ -6,8 +6,17 @@ not regenerated with a different autoconf), links its Unix side with the static 
 workflow builds, and on macOS asks for VK_EXT_metal_surface where Proton asks for
 VK_KHR_xlib_surface when the runtime creates the game's Vulkan instance.
 
-With 0031-0034, a Direct3D 11 game rendering through DXVK can then hand its swapchains to a native
-OpenXR runtime (OXRSys) as Vulkan images. Not yet verified at runtime.
+Two fixes to Proton's code that a macOS runtime needs:
+- A runtime may need no Vulkan instance extensions and return an empty list (OXRSys does). Proton
+  appended " VK_KHR_surface VK_KHR_win32_surface" to it, so the list started with a space, the
+  first name parsed was empty, and vkCreateInstance failed with VK_ERROR_EXTENSION_NOT_PRESENT.
+- Direct3D swapchains got XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT for every format. Vulkan depth
+  formats have no compatible view formats, and OXRSys rejects mutable depth swapchains with
+  XR_ERROR_FEATURE_UNSUPPORTED, so the bit is now set for color formats only.
+
+With 0031-0034 and 0036, the Windows hello_xr (OpenXR-SDK-Source 1.1.65, Direct3D 11 over the
+template's DXVK) ran against OXRSys 1.3.0 on an M5, macOS 27.2.1: session FOCUSED, color and depth
+swapchains created, frame loop at 72 Hz for 40 s.
 
 diff --git a/configure b/configure
 index 26e224a..0026b55 100755
@@ -54,10 +63,27 @@ index 0558320..a2738d4 100644
  EXTRADEFS  = -DWINE_NO_LONG_TYPES
  
 diff --git a/dlls/wineopenxr/openxr.c b/dlls/wineopenxr/openxr.c
-index b224079..34ecaa7 100644
+index b224079..e50c3f1 100644
 --- a/dlls/wineopenxr/openxr.c
 +++ b/dlls/wineopenxr/openxr.c
-@@ -326,7 +326,11 @@ static VkResult WINAPI vk_create_instance_callback(const VkInstanceCreateInfo *c
+@@ -278,6 +278,16 @@ XrResult WINAPI wine_xrGetVulkanInstanceExtensionsKHR(XrInstance instance,
+       /* *bufferCountOutput is not required to (and sometimes does not) contain the offset to the NUL byte */
+       lin_len = strlen(buffer) + 1;
+ 
++      if (lin_len == 1) {
++        /* The host runtime may need no instance extensions; do not start the list with a space. */
++        if (bufferCapacityInput < sizeof(win32_surface)) {
++          return XR_ERROR_SIZE_INSUFFICIENT;
++        }
++        memcpy(buffer, win32_surface, sizeof(win32_surface));
++        *bufferCountOutput = sizeof(win32_surface);
++        return res;
++      }
++
+       if (bufferCapacityInput < lin_len + sizeof(win32_surface)) {
+         return XR_ERROR_SIZE_INSUFFICIENT;
+       }
+@@ -326,7 +336,11 @@ static VkResult WINAPI vk_create_instance_callback(const VkInstanceCreateInfo *c
      memcpy(enabled_extensions, create_info->ppEnabledExtensionNames,
             create_info->enabledExtensionCount * sizeof(*enabled_extensions));
      enabled_extensions[our_vulkan_create_info.enabledExtensionCount++] = "VK_KHR_surface";
@@ -69,3 +95,21 @@ index b224079..34ecaa7 100644
      our_vulkan_create_info.ppEnabledExtensionNames = enabled_extensions;
    }
  
+diff --git a/dlls/wineopenxr/openxr_loader.c b/dlls/wineopenxr/openxr_loader.c
+index 673023b..e974cca 100644
+--- a/dlls/wineopenxr/openxr_loader.c
++++ b/dlls/wineopenxr/openxr_loader.c
+@@ -1000,9 +1000,11 @@ XrResult WINAPI xrCreateSwapchain(XrSession session, const XrSwapchainCreateInfo
+       return XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED;
+     }
+ 
+-    our_createInfo.usageFlags |= XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT;
+-
+     format_is_depth = is_vulkan_format_depth(our_createInfo.format);
++    /* Depth formats have no compatible view formats in Vulkan. */
++    if (!format_is_depth) {
++      our_createInfo.usageFlags |= XR_SWAPCHAIN_USAGE_MUTABLE_FORMAT_BIT;
++    }
+     if ((createInfo->usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) && format_is_depth) {
+       WARN("Swapchain has a color attachment usage, but it's format is for depth\n");
+     }
