@@ -39,6 +39,11 @@ yet. The paragraphs under the table give the details and the measurements.
 | `0027` ntdll-dll-redirection-dotlocal-folder | A program's DLLs kept in its `<exe>.local` folder were never found, so it stopped before its first window. | Fahrenheit: Indigo Prophecy Remastered | general | not sent, upstream lacks it too | Highball |
 | `0028` ntdll-crash-on-faults-in-foreign-threads | A fault inside Apple's Metal or D3DMetal threads froze the game forever instead of crashing it. | GravityMark (Direct3D 12 on D3DMetal) | macOS | not sent | cyber-prinzesse (#23) |
 | `0030` gdi32-d3dkmt-set-process-scheduling-priority-class | Steam's client service ended the moment it set its GPU scheduling class, and a game's Steam overlay could freeze it. | Steam (SteamService.dll), Satisfactory's overlay (#699) | missing function | not sent | |
+| `0031` winevulkan-wine-vr-extensions | Wine had no way for an OpenXR runtime to create a game's Vulkan instance and device, which wineopenxr needs. | wineopenxr (VR, experimental) | general | from Proton, not in WineHQ | Rémi Bernon (Proton 1196bc013e1) |
+| `0032` ntdll-do-not-pass-openxr-environment-variables | The host's `XR_*` variables reached Windows programs, so a Windows OpenXR loader would read a Mac runtime manifest. | wineopenxr (VR, experimental) | general | from Proton, not in WineHQ | Proton 7d8366caa06 |
+| `0033` ntdll-export-wine-set-unix-env | wineopenxr could not pass the runtime's Vulkan device extensions to winevulkan's host side. | wineopenxr (VR, experimental) | CrossOver tree (ported Proton hack) | not upstreamable as is | Proton 1d4a019a8c6, ported |
+| `0034` winemac-enable-wine-vr-extensions | The Mac driver did not offer 0031's extensions. | wineopenxr (VR, experimental) | macOS | goes with 0031 | Highball fork (0xdeadbad) |
+| `0035` wineopenxr-build-on-macos | Proton's wineopenxr was not built: registers it, links the static OpenXR loader, asks for a Metal surface instead of Xlib. | wineopenxr (VR, experimental) | macOS | not upstreamable as is | Highball fork (0xdeadbad) |
 
 `0004` was an overlay-window attempt at what `0007` fixes. It was replaced the next day and its number was not reused.
 

@@ -34,6 +34,18 @@ jobs:
           echo "$sha  crossover-sources.tar.gz" | shasum -a 256 -c -
           mkdir -p src && tar -xzf crossover-sources.tar.gz -C src
           ls src/sources/wine | head -3
+      # Proton's wineopenxr goes in as dlls/wineopenxr before the series: patches/0035 registers
+      # it in configure and adapts it to macOS. Pinned in inputs.json.
+      - name: wineopenxr sources
+        run: |
+          set -euo pipefail
+          read -r commit files < <(python3 -c 'import json;w=json.load(open("inputs.json"))["wineopenxr"];print(w["commit"]," ".join(w["files"]))')
+          dst=src/sources/wine/dlls/wineopenxr
+          mkdir -p "$dst"
+          for f in $files; do
+            curl -sSfL -o "$dst/$f" "https://raw.githubusercontent.com/ValveSoftware/Proton/$commit/wineopenxr/$f"
+          done
+          ls "$dst"
       - name: apply patch series
         run: |
           set -euo pipefail
@@ -46,6 +58,18 @@ jobs:
           echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
           x86_64-w64-mingw32-gcc --version | head -1
           i686-w64-mingw32-gcc --version | head -1
+      # The OpenXR loader wineopenxr.so links statically, so the engine carries no extra dylib.
+      - name: OpenXR loader
+        run: |
+          set -euo pipefail
+          commit=$(python3 -c 'import json;print(json.load(open("inputs.json"))["openxr_loader"]["commit"])')
+          git init -q openxr-sdk && cd openxr-sdk
+          git fetch -q --depth 1 https://github.com/KhronosGroup/OpenXR-SDK "$commit" && git checkout -q FETCH_HEAD
+          cmake -S . -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release \
+            -DDYNAMIC_LOADER=OFF -DBUILD_TESTS=OFF -DBUILD_API_LAYERS=OFF \
+            -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_INSTALL_PREFIX="$PWD/../xr"
+          cmake --build build -j"$(sysctl -n hw.ncpu)" --target install
+          ls ../xr/lib
       - name: ccache
         uses: actions/cache@v4
         with:
@@ -72,6 +96,7 @@ jobs:
             --without-krb5 --without-netapi --without-oss --without-pulse \
             --without-sane --with-sdl --without-udev --without-usb --without-v4l2 --without-x \
             --disable-tests \
+            LDFLAGS="-L$PWD/../xr/lib" \
             CC="ccache clang" CXX="ccache clang++" \
             CROSSCC="ccache x86_64-w64-mingw32-gcc" \
             i386_CC="ccache i686-w64-mingw32-gcc" x86_64_CC="ccache x86_64-w64-mingw32-gcc" \
@@ -84,6 +109,9 @@ jobs:
           # Highball's engine layout: engine/{bin,lib,share}, renderers/, frameworks/, tools/, manifest.json
           mkdir -p out/renderers out/frameworks out/tools
           test -x out/engine/bin/wine
+          # The Windows-side OpenXR manifest for wineopenxr; a bottle's ActiveRuntime points at a copy.
+          mkdir -p out/engine/share/wine/openxr
+          cp src/sources/wine/dlls/wineopenxr/wineopenxr64.json out/engine/share/wine/openxr/
           out/engine/bin/wine --version || true
           # Wine Mono and Gecko, the versions this tree asks for (dlls/appwiz.cpl/addons.c).
           # Without them the first boot of a bottle stops at a "download Mono?" prompt that

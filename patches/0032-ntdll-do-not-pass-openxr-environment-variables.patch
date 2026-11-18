@@ -1,0 +1,22 @@
+ntdll: Do not pass XR_* environment variables to Windows programs.
+
+The host's OpenXR loader variables (XR_RUNTIME_JSON among them) point at a
+native runtime manifest. A Windows OpenXR loader inside the prefix must not
+read them, or it tries to load a Mach-O runtime.
+
+From Proton (ValveSoftware/wine 7d8366caa06), unchanged.
+
+diff --git a/dlls/ntdll/unix/env.c b/dlls/ntdll/unix/env.c
+index 832adfc..388e8e7 100644
+--- a/dlls/ntdll/unix/env.c
++++ b/dlls/ntdll/unix/env.c
+@@ -356,7 +356,8 @@ static BOOL is_ignored_env_var( const char *var )
+             STARTS_WITH( var, "SDL_AUDIO_DRIVER=" ) ||
+             STARTS_WITH( var, "SDL_VIDEODRIVER=" ) ||
+             STARTS_WITH( var, "SDL_VIDEO_DRIVER=" ) ||
+-            STARTS_WITH( var, "VK_" ));
++            STARTS_WITH( var, "VK_" ) ||
++            STARTS_WITH( var, "XR_" ));
+ }
+ 
+ 

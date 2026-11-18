@@ -1,0 +1,19 @@
+winemac: Advertise the Wine VR device extensions.
+
+The Mac driver's counterpart of the two lines 0031 adds to winex11.drv, so that
+winevulkan offers VK_WINE_openxr_device_extensions and
+VK_WINE_openvr_device_extensions on macOS.
+
+diff --git a/dlls/winemac.drv/vulkan.c b/dlls/winemac.drv/vulkan.c
+index bfa656e..cc372a4 100644
+--- a/dlls/winemac.drv/vulkan.c
++++ b/dlls/winemac.drv/vulkan.c
+@@ -117,6 +117,8 @@ static void macdrv_map_instance_extensions(struct vulkan_instance_extensions *ex
+ 
+ static void macdrv_map_device_extensions(struct vulkan_device_extensions *extensions)
+ {
++    extensions->has_VK_WINE_openvr_device_extensions = 1;
++    extensions->has_VK_WINE_openxr_device_extensions = 1;
+ }
+ 
+ static const struct vulkan_driver_funcs macdrv_vulkan_driver_funcs =

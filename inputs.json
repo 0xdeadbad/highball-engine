@@ -23,5 +23,36 @@
     "commit": "0b7c5e54dad37f6ed8374b91443e2d2083652452",
     "license": "MIT",
     "note": "athei's x87sidecar, built from source for the Wine 11 engines; Wine's side (cooperative attach, ROSETTA_X87_PATH) is patches/0012 since r12."
+  },
+  "wineopenxr": {
+    "name": "Proton's wineopenxr (LGPL)",
+    "repo": "https://github.com/ValveSoftware/Proton",
+    "commit": "1f089f5610a882c8bfcb4b58a3c86ee88bb4b9f1",
+    "path": "wineopenxr",
+    "files": [
+      "Makefile.in",
+      "dxvk-interop.h",
+      "loader_structs.h",
+      "loader_thunks.c",
+      "loader_thunks.h",
+      "openxr.c",
+      "openxr_loader.c",
+      "openxr_loader.h",
+      "openxr_private.h",
+      "openxr_thunks.c",
+      "openxr_thunks.h",
+      "vkd3d-proton-interop.h",
+      "wineopenxr.h",
+      "wineopenxr.spec",
+      "wineopenxr64.json"
+    ],
+    "note": "Copied into dlls/wineopenxr before the patch series; patches/0035 registers it and adapts it to macOS. Same commit as the Proton tree the 0031-0034 Wine changes come from (proton_11.0)."
+  },
+  "openxr_loader": {
+    "name": "Khronos OpenXR-SDK loader, release-1.1.36 (Apache-2.0)",
+    "repo": "https://github.com/KhronosGroup/OpenXR-SDK",
+    "tag": "release-1.1.36",
+    "commit": "8899a91c17ce9618f565f42408b47db1d6e9ccc7",
+    "note": "Built as a static library and linked into wineopenxr.so, the version Proton pins. It finds the native runtime (OXRSys) through XR_RUNTIME_JSON or ~/.config/openxr/1/active_runtime.json."
   }
 }

@@ -1,0 +1,146 @@
+ntdll: Export __wine_set_unix_env to set a host environment variable.
+
+wineopenxr passes the Vulkan device extensions the OpenXR runtime requires to
+winevulkan's host side through a host environment variable, set from the PE side
+with this export.
+
+From Proton (ValveSoftware/wine 1d4a019a8c6, a Proton HACK). Ported: CrossOver
+26.3 has no steamclient trampolines, so the new unix call sits after
+system_time_precise and before pe_module_loaded in the enum and in both call
+tables, keeping their order the same.
+
+diff --git a/dlls/ntdll/env.c b/dlls/ntdll/env.c
+index dd4f9c2..08b2eb4 100644
+--- a/dlls/ntdll/env.c
++++ b/dlls/ntdll/env.c
+@@ -730,3 +730,17 @@ void init_user_process_params(void)
+     set_wow64_environment( &new_params->Environment );
+     new_params->EnvironmentSize = RtlSizeHeap( GetProcessHeap(), 0, new_params->Environment );
+ }
++
++
++/**********************************************************************
++ *      __wine_set_unix_env
++ */
++NTSTATUS WINAPI __wine_set_unix_env( const char *var, const char *val )
++{
++    struct wine_set_unix_env_params params =
++    {
++        .name = var, .val = val
++    };
++
++    return WINE_UNIX_CALL( unix___wine_set_unix_env, &params );
++}
+diff --git a/dlls/ntdll/ntdll.spec b/dlls/ntdll/ntdll.spec
+index f20e42a..d79bb1a 100644
+--- a/dlls/ntdll/ntdll.spec
++++ b/dlls/ntdll/ntdll.spec
+@@ -1753,6 +1753,7 @@
+ @ extern -private __wine_unix_call_dispatcher
+ @ extern -private -arch=arm64ec __wine_unix_call_dispatcher_arm64ec
+ @ extern -private __wine_unixlib_handle
++@ stdcall __wine_set_unix_env(ptr ptr)
+ 
+ # Debugging
+ @ stdcall -norelay __wine_dbg_write(ptr long)
+diff --git a/dlls/ntdll/unix/loader.c b/dlls/ntdll/unix/loader.c
+index 1b3f483..6df9112 100644
+--- a/dlls/ntdll/unix/loader.c
++++ b/dlls/ntdll/unix/loader.c
+@@ -1471,6 +1471,19 @@ static NTSTATUS pe_module_loaded( void *args ) { return STATUS_NOT_IMPLEMENTED;
+ #endif
+ 
+ 
++/**********************************************************************
++ *      __wine_set_unix_env
++ */
++NTSTATUS WINAPI wine_set_unix_env( void *args )
++{
++    struct wine_set_unix_env_params *params = args;
++
++    if (!params->val) unsetenv( params->name );
++    else setenv( params->name, params->val, 1 );
++    return 0;
++}
++
++
+ static const unixlib_entry_t unix_call_funcs[] =
+ {
+     load_so_dll,
+@@ -1481,6 +1494,7 @@ static const unixlib_entry_t unix_call_funcs[] =
+     unixcall_wine_server_handle_to_fd,
+     unixcall_wine_spawnvp,
+     system_time_precise,
++    wine_set_unix_env,
+ #if defined(__x86_64__)
+     pe_module_loaded,
+ #endif
+@@ -1506,6 +1520,21 @@ static NTSTATUS wow64_unwind_builtin_dll( void *args ) { return STATUS_UNSUCCESS
+ static NTSTATUS wow64_pe_module_loaded( void *args ) { return STATUS_NOT_IMPLEMENTED; }
+ #endif
+ 
++static NTSTATUS wow64___wine_set_unix_env( void *args )
++{
++    struct
++    {
++        ULONG name;
++        ULONG val;
++    } const *params32 = args;
++    struct wine_set_unix_env_params params =
++    {
++        .name = ULongToPtr( params32->name ),
++        .val = ULongToPtr( params32->val ),
++    };
++    return wine_set_unix_env( &params );
++}
++
+ const unixlib_entry_t unix_call_wow64_funcs[] =
+ {
+     wow64_load_so_dll,
+@@ -1516,6 +1545,7 @@ const unixlib_entry_t unix_call_wow64_funcs[] =
+     wow64_wine_server_handle_to_fd,
+     wow64_wine_spawnvp,
+     system_time_precise,
++    wow64___wine_set_unix_env,
+ #if defined(__x86_64__)
+     wow64_pe_module_loaded,
+ #endif
+diff --git a/dlls/ntdll/unixlib.h b/dlls/ntdll/unixlib.h
+index 3a4a370..5af0614 100644
+--- a/dlls/ntdll/unixlib.h
++++ b/dlls/ntdll/unixlib.h
+@@ -66,6 +66,12 @@ struct unwind_builtin_dll_params
+     CONTEXT                    *context;
+ };
+ 
++struct wine_set_unix_env_params
++{
++    const char *name;
++    const char *val;
++};
++
+ struct pe_module_loaded_params
+ {
+     void *start;
+@@ -82,6 +88,7 @@ enum ntdll_unix_funcs
+     unix_wine_server_handle_to_fd,
+     unix_wine_spawnvp,
+     unix_system_time_precise,
++    unix___wine_set_unix_env,
+ #if defined(__x86_64__)
+     unix_pe_module_loaded,
+ #endif
+diff --git a/include/winternl.h b/include/winternl.h
+index 80c295f..fdbd29b 100644
+--- a/include/winternl.h
++++ b/include/winternl.h
+@@ -5338,6 +5338,9 @@ NTSYSAPI LONGLONG  WINAPI RtlLargeIntegerSubtract(LONGLONG,LONGLONG);
+ NTSYSAPI NTSTATUS  WINAPI RtlLargeIntegerToChar(const ULONGLONG *,ULONG,ULONG,PCHAR);
+ #endif
+ 
++/* Wine internal functions */
++
++NTSYSAPI NTSTATUS WINAPI __wine_set_unix_env( const char *var, const char *val );
+ 
+ /***********************************************************************
+  * Inline functions

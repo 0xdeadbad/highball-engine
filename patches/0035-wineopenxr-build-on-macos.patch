@@ -1,0 +1,71 @@
+wineopenxr: Build Proton's wineopenxr on macOS.
+
+The build copies Proton's wineopenxr (inputs.json) into dlls/wineopenxr before this series. This
+patch registers it in configure.ac and configure (the two lines autoconf would add, so configure is
+not regenerated with a different autoconf), links its Unix side with the static OpenXR loader the
+workflow builds, and on macOS asks for VK_EXT_metal_surface where Proton asks for
+VK_KHR_xlib_surface when the runtime creates the game's Vulkan instance.
+
+With 0031-0034, a Direct3D 11 game rendering through DXVK can then hand its swapchains to a native
+OpenXR runtime (OXRSys) as Vulkan images. Not yet verified at runtime.
+
+diff --git a/configure b/configure
+index 26e224a..0026b55 100755
+--- a/configure
++++ b/configure
+@@ -1553,6 +1553,7 @@ enable_wineoss_drv
+ enable_wineps_drv
+ enable_winepulse_drv
+ enable_wineusb_sys
++enable_wineopenxr
+ enable_winevulkan
+ enable_winewayland_drv
+ enable_winex11_drv
+@@ -23396,6 +23397,7 @@ wine_fn_config_makefile dlls/wineps.drv enable_wineps_drv
+ wine_fn_config_makefile dlls/wineps16.drv16 enable_win16
+ wine_fn_config_makefile dlls/winepulse.drv enable_winepulse_drv
+ wine_fn_config_makefile dlls/wineusb.sys enable_wineusb_sys
++wine_fn_config_makefile dlls/wineopenxr enable_wineopenxr
+ wine_fn_config_makefile dlls/winevulkan enable_winevulkan
+ wine_fn_config_makefile dlls/winewayland.drv enable_winewayland_drv
+ wine_fn_config_makefile dlls/winex11.drv enable_winex11_drv
+diff --git a/configure.ac b/configure.ac
+index bf8e3c0..b02f8ee 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -3393,6 +3393,7 @@ WINE_CONFIG_MAKEFILE(dlls/wineps.drv)
+ WINE_CONFIG_MAKEFILE(dlls/wineps16.drv16)
+ WINE_CONFIG_MAKEFILE(dlls/winepulse.drv)
+ WINE_CONFIG_MAKEFILE(dlls/wineusb.sys)
++WINE_CONFIG_MAKEFILE(dlls/wineopenxr)
+ WINE_CONFIG_MAKEFILE(dlls/winevulkan)
+ WINE_CONFIG_MAKEFILE(dlls/winewayland.drv)
+ WINE_CONFIG_MAKEFILE(dlls/winex11.drv)
+diff --git a/dlls/wineopenxr/Makefile.in b/dlls/wineopenxr/Makefile.in
+index 0558320..a2738d4 100644
+--- a/dlls/wineopenxr/Makefile.in
++++ b/dlls/wineopenxr/Makefile.in
+@@ -1,6 +1,7 @@
+ MODULE     = wineopenxr.dll
+ UNIXLIB    = wineopenxr.so
+ IMPORTS    = advapi32 user32 dxgi winevulkan
++UNIX_LIBS  = -lopenxr_loader -lc++
+ 
+ EXTRADEFS  = -DWINE_NO_LONG_TYPES
+ 
+diff --git a/dlls/wineopenxr/openxr.c b/dlls/wineopenxr/openxr.c
+index b224079..34ecaa7 100644
+--- a/dlls/wineopenxr/openxr.c
++++ b/dlls/wineopenxr/openxr.c
+@@ -326,7 +326,11 @@ static VkResult WINAPI vk_create_instance_callback(const VkInstanceCreateInfo *c
+     memcpy(enabled_extensions, create_info->ppEnabledExtensionNames,
+            create_info->enabledExtensionCount * sizeof(*enabled_extensions));
+     enabled_extensions[our_vulkan_create_info.enabledExtensionCount++] = "VK_KHR_surface";
++#ifdef __APPLE__
++    enabled_extensions[our_vulkan_create_info.enabledExtensionCount++] = "VK_EXT_metal_surface";
++#else
+     enabled_extensions[our_vulkan_create_info.enabledExtensionCount++] = "VK_KHR_xlib_surface";
++#endif
+     our_vulkan_create_info.ppEnabledExtensionNames = enabled_extensions;
+   }
+ 
